@@ -162,7 +162,14 @@ with structured outputs (JSON schema) · Zod for response validation.
 - **Beverage-type-specific rules** (e.g. ABV optional for some wines/beers) are not
   yet enforced; the tool checks whatever fields the application provides plus the
   universally-mandatory warning.
-- **Image limits:** up to 12 MB per image, JPEG/PNG/WEBP/GIF. Extremely large
-  images may need downsizing.
+- **Image limits:** up to 12 MB per image, **JPEG/PNG/WEBP/GIF only**. iPhone
+  photos are often HEIC, which the vision API doesn't accept — the app rejects
+  them with a clear "unsupported image type" message rather than failing
+  silently. Convert to JPEG/PNG first (a production version would auto-transcode).
+  Extremely large images may need downsizing.
+- **Imperfect images** (skew, glare, low light) are handled by the vision model
+  and surfaced via the image-quality note; verified with skewed (~11°) and
+  glare-washed test images, both of which extracted correctly. Severely
+  unreadable images are routed to **Needs review** rather than passed.
 - **Mock mode** returns a fixed sample result and does not analyze the uploaded
   image — it exists only so the UI is testable without a key.
