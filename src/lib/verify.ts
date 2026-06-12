@@ -26,8 +26,16 @@ function decideVerdict(
   }
   if (mismatches > 0 || missing > 0) {
     const parts: string[] = [];
-    if (mismatches) parts.push(`${mismatches} field${mismatches > 1 ? "s" : ""} don't match`);
-    if (missing) parts.push(`${missing} required field${missing > 1 ? "s" : ""} missing from the label`);
+    if (mismatches)
+      parts.push(
+        mismatches > 1 ? `${mismatches} fields don't match` : `1 field doesn't match`
+      );
+    if (missing)
+      parts.push(
+        missing > 1
+          ? `${missing} required fields missing from the label`
+          : `1 required field missing from the label`
+      );
     return {
       verdict: "review",
       summary: `Needs a human look: ${parts.join(", ")}.`,
