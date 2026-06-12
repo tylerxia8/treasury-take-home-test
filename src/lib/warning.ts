@@ -54,9 +54,10 @@ export function checkGovernmentWarning(extracted: ExtractedLabel): WarningCheck 
 
   const raw = gw.fullText;
 
-  // Heading must be all caps. Trust the model's explicit flag if it set one,
-  // but also verify against the literal text we received.
-  const hasUpperHeading = raw.includes(WARNING_HEADING);
+  // Heading must be all caps. Match case-sensitively but tolerate extra
+  // whitespace, so "GOVERNMENT  WARNING:" still counts as all-caps while
+  // "Government Warning:" does not.
+  const hasUpperHeading = /GOVERNMENT\s+WARNING\s*:/.test(raw);
   const hasAnyCaseHeading = /government\s+warning\s*:/i.test(raw);
   if (!hasUpperHeading) {
     if (hasAnyCaseHeading) {
