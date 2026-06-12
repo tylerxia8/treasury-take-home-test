@@ -1,118 +1,168 @@
-# **Take-Home Project: AI-Powered Alcohol Label Verification App**
+# TTB Label Verifier
 
-## **Project Background & Stakeholder Context**
+An AI-powered prototype that helps TTB compliance agents verify alcohol beverage
+labels against their application submissions. Upload a label image (and the
+expected application data), and the tool reads the label with Claude's vision
+model, compares each required field, and flags anything that needs a human look —
+in a few seconds per label.
 
-*The following document contains notes from our discovery sessions with the Compliance Division, along with technical requirements for the prototype. We've included stakeholder feedback to give you context on how this tool will be used.*
+Built for the take-home brief in this repo. The interview notes drove every design
+decision (see [Design decisions](#design-decisions)).
 
-### **Interview Notes: Sarah Chen, Deputy Director of Label Compliance**
+---
 
-*Conducted Tuesday, 3:15 PM — Sarah was running late from her daughter's school play rehearsal*
+## What it does
 
-"Thanks for meeting with me. Sorry about the delay—my daughter's playing the lead in her school's production of *Annie*next week and rehearsals have been crazy. Anyway, let me tell you about what we're dealing with here.
+- **Reads the label** — extracts brand name, class/type, alcohol content (ABV),
+  net contents, bottler/producer name & address, country of origin, and the
+  government warning from a photo or scan.
+- **Compares to the application** — checks each field the agent entered against
+  what's actually on the label, with smart matching (see below).
+- **Enforces the Government Warning Statement** — verifies the mandatory federal
+  warning is present, worded exactly, with the `GOVERNMENT WARNING:` heading in
+  all caps. This is the most-gamed element, so the check is strict.
+- **Batch mode** — upload hundreds of labels at once (plus an optional CSV of
+  application data), and watch results stream in. Download a results CSV.
+- **Clear verdicts** — every label gets **Pass**, **Needs review**, or **Fail**,
+  with plain-language explanations of *why*.
 
-So the TTB reviews about 150,000 label applications a year. Our team of 47 agents handles all of them. Back in the 80s—before my time—they actually had over 100 agents, but budget cuts, you know how it goes. We've been doing things basically the same way since the COLA system went online in 2003. That was a big upgrade from paper forms, believe it or not.
+## How it maps to the requirements
 
-The actual review process is pretty straightforward. An agent pulls up an application, looks at the label artwork, and checks that what's on the label matches what's in the application. Brand name matches? Check. ABV is correct? Check. Government warning is there? Check. It takes maybe 5-10 minutes per application for a simple one, longer if there are issues.
+| Requirement (from the brief) | How it's met |
+|---|---|
+| **Results in ~5 seconds** (vendor failed at 30–40s) | One vision call per label; tuned for low latency (`effort: low`, no extended thinking, small structured output). Batch runs calls concurrently. |
+| **Dead-simple UI** ("my 73-year-old mother could use it") | Large text and buttons, one obvious primary action, plain-language results, color **and** icons **and** text (not color alone). |
+| **Batch uploads** (importers dump 200–300 at once) | Dedicated batch tab; bounded-concurrency processing with a live results table and CSV export. |
+| **Government warning must be exact** | Compared word-for-word against the federal text (27 CFR 16.21); heading must be all caps. |
+| **Judgment, not dumb matching** ("STONE'S THROW" = "Stone's Throw") | Comparison is case-, punctuation-, accent-, and whitespace-insensitive; ABV is parsed numerically; net contents are unit-normalized (750 mL = 750ml = 0.75 L). |
+| **Imperfect images** (glare, angle) | Claude's vision tolerates skew/glare; the model reports an image-quality note, and low-confidence reads are routed to **Needs review** rather than passed silently. |
+| **Deployed URL + source + docs** | Deploys to Vercel in one click (below); this README documents approach, tools, and assumptions. |
 
-Here's the thing though—and this is what got leadership interested in AI—a lot of what we do is just... matching. Like literally just making sure the number on the form is the same as the number on the label. My agents spend half their day doing what's essentially data entry verification. It's not that they can't do more complex analysis, it's that they're drowning in routine stuff.
+---
 
-Oh, I should mention—we tried a pilot with the scanning vendor last year. Disaster. The system would take 30, 40 seconds sometimes to process a single label. Our agents just went back to doing it by eye because they could do five labels in the time it took the machine to do one. **If we can't get results back in about 5 seconds, nobody's going to use it.** We learned that the hard way.
+## Quick start (local)
 
-What else... The agents really vary in their tech comfort level. Dave's been here since the Clinton administration and still prints his emails. Meanwhile, Jenny's fresh out of college and probably could have built this tool herself. We need something **my mother could figure out**—she's 73 and just learned to video call her grandkids last year, if that gives you a benchmark. Half our team is over 50. Clean, obvious, no hunting for buttons.
+Requires Node.js 18+.
 
-One more thing that came up in our last team meeting—during peak season, we get these big importers who dump 200, 300 label applications on us at once. Right now we literally have to process them one at a time. If there was some way to **handle batch uploads**, that would be huge. Janet from our Seattle office has been asking about this for years."
-
-### **Interview Notes: Marcus Williams, IT Systems Administrator**
-
-*Coffee chat, Thursday morning*
-
-"Sarah probably gave you the business side. Let me fill you in on some of the technical landscape.
-
-Our current infrastructure is... well, it's government infrastructure, let's leave it at that. We're on Azure now after the migration in 2019. That was a whole thing—don't get me started on the FedRAMP certification process. Took 18 months just for the paperwork.
-
-The COLA system is built on .NET, though there's been talk about modernizing it for years. We had a contractor come in last summer to do an assessment and they quoted us $4.2 million for a full rebuild. That went nowhere, obviously.
-
-For this prototype, we're not looking to integrate with COLA directly—that's a whole different beast with its own authorization requirements. Think of this as a standalone proof-of-concept that could potentially inform future procurement decisions. If it works well, maybe we look at how to incorporate it into the workflow. But that's years away, realistically.
-
-Security-wise, we'd need to be careful with any production deployment—there's PII considerations, document retention policies, the usual federal compliance stuff. But for a prototype? Just don't do anything crazy. We're not storing anything sensitive for this exercise.
-
-Oh, and our network blocks outbound traffic to a lot of domains, so keep that in mind if you're thinking about cloud APIs. During the scanning vendor pilot, half their features didn't work because our firewall blocked connections to their ML endpoints. Classic."
-
-### **Interview Notes: Dave Morrison, Senior Compliance Agent (28 years)**
-
-*Brief hallway conversation*
-
-"Look, I'll be honest, I've seen a lot of these 'modernization' projects come and go. Remember the automated phone system they put in back in 2008? Supposed to reduce call volume. We ended up with more calls because nobody could figure out how to navigate it.
-
-The thing about label review is there's nuance. You can't just pattern match everything. Like, I had one last week where the brand name was 'STONE'S THROW' on the label but 'Stone's Throw' in the application. Technically a mismatch? Sure. But it's obviously the same thing. You need judgment.
-
-That said, I'm not against new tools. If something can help me get through my queue faster, great. Just don't make my life harder in the process. I spend enough time fighting with COLA as it is."
-
-### **Interview Notes: Jenny Park, Junior Compliance Agent (8 months)**
-
-*Teams call, Friday afternoon*
-
-"I'm so excited you're working on this! When I started here, I was kind of shocked at how manual everything is. Like, I literally have a printed checklist on my desk that I go through for every label. Brand name—check with my eyes. ABV—check with my eyes. Warning statement—check with my eyes. It's 2024!
-
-The one thing I'd say is the warning statement check is actually trickier than it sounds. It has to be **exact**. Like, word-for-word, and the 'GOVERNMENT WARNING:' part has to be in all caps and bold. Sarah probably mentioned this but people try to get creative with the warning all the time. Smaller font, different wording, burying it in tiny text. I caught one last month where they used 'Government Warning' in title case instead of all caps. Rejected.
-
-Also—and this is maybe out of scope for a prototype—but it would be amazing if the tool could handle images that aren't perfectly shot. I've seen labels that are photographed at weird angles, or the lighting is bad, or there's glare on the bottle. Right now if an agent can't read the label they just reject it and ask for a better image. But if AI could handle some of that..."
-
-## **Technical Requirements**
-
-You are free to use any programming languages, frameworks, or libraries you prefer. We want to see what kind of engineering, design, and integration decisions you make.
-
-## **Additional Context**
-
-### **About TTB Label Requirements**
-
-For reference, TTB requires specific information on alcohol beverage labels. The exact requirements vary by beverage type (beer, wine, distilled spirits) but common elements include:
-
-- Brand name
-- Class/type designation
-- Alcohol content (with some exceptions for certain wine/beer)
-- Net contents
-- Name and address of bottler/producer
-- Country of origin for imports
-- **Government Health Warning Statement** (mandatory on all alcohol beverages)
-
-We encourage you to review TTB's guidelines at ttb.gov for additional context on label requirements.
-
-### **Sample Label**
-
-Your app should handle labels containing information like the example below:
-
-**Example Distilled Spirits Label Fields:**
-
-- Brand Name: "OLD TOM DISTILLERY"
-- Class/Type: "Kentucky Straight Bourbon Whiskey"
-- Alcohol Content: "45% Alc./Vol. (90 Proof)"
-- Net Contents: "750 mL"
-- Government Warning: \[Standard government warning text\]
-
-*We encourage you to create or source additional test labels—AI image generation tools work well for this.*
-
-## **Deliverables**
-
-1. **Source Code Repository** (GitHub or similar)
-   - All source code
-   - README with setup and run instructions
-   - Brief documentation of approach, tools used, assumptions made
-2. **Deployed Application URL**
-   - Working prototype we can access and test
-
-## **Evaluation Criteria**
-
-- Correctness and completeness of core requirements
-- Code quality and organization
-- Appropriate technical choices for the scope
-- User experience and error handling
-- Attention to requirements
-- Creative problem-solving
-
-We understand this is time-constrained. A working core application with clean code is preferred over ambitious but incomplete features. Document any trade-offs or limitations.
-
-*Questions? Reach out for clarification—though we also value how you fill in gaps independently.*
-
-Good luck!
+```bash
+npm install
+cp .env.example .env.local      # then add your key (see below)
+npm run dev                     # http://localhost:3000
 ```
+
+Open http://localhost:3000.
+
+### Configuration
+
+Set these in `.env.local` (only `ANTHROPIC_API_KEY` is needed to start):
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | _(none)_ | Your Anthropic API key from [console.anthropic.com](https://console.anthropic.com). **If unset, the app runs in demo/mock mode** and returns sample results so you can click through the UI without a key. |
+| `ANTHROPIC_MODEL` | `claude-opus-4-8` | Vision model. Use `claude-sonnet-4-6` or `claude-haiku-4-5` for lower latency/cost. |
+| `EXTRACTION_EFFORT` | `low` | Reasoning effort (`low`/`medium`/`high`/`max`). `low` keeps latency near the 5s target; raise for hard or skewed images. |
+| `BATCH_CONCURRENCY` | `6` | Reserved for server-side tuning. |
+
+> **Security:** the key is read server-side only (in API routes) and is never sent
+> to the browser. Don't commit `.env.local` — it's gitignored.
+
+---
+
+## Deploy (Vercel)
+
+1. Push this repo to GitHub.
+2. In [Vercel](https://vercel.com), **New Project → Import** the repo. It auto-detects Next.js.
+3. Under **Environment Variables**, add `ANTHROPIC_API_KEY` (and optionally `ANTHROPIC_MODEL`).
+4. **Deploy.** You get a public URL.
+
+No other configuration is required. (Any Node host works — `npm run build && npm start`.)
+
+---
+
+## How to test it
+
+Don't have label images handy? Two options:
+
+1. **Use the included sample labels.** Open [`samples/sample-labels.html`](samples/sample-labels.html)
+   in a browser and screenshot each label (or use your OS's "capture region"). One
+   label is fully compliant; one has a tampered government warning so you can see a
+   **Fail**. Pair them with [`samples/applications.csv`](samples/applications.csv) in batch mode.
+2. **Generate labels with AI image tools** (as the brief suggests) and enter the
+   matching fields by hand in single mode.
+
+Without an API key, the app runs in **demo mode** and returns a sample result for
+the example bourbon label, so you can still exercise the whole UI.
+
+---
+
+## Design decisions
+
+**Extraction by the model, comparison in code.** Claude reads the label fields
+*verbatim*; the match/mismatch decision is made by deterministic, auditable rules
+in [`src/lib/compare.ts`](src/lib/compare.ts). For a compliance tool this matters:
+an agent (or an auditor) can see exactly *why* two values were treated as equal,
+the rules are unit-testable, and it avoids a second model round-trip — which helps
+the 5-second budget. Dave's "STONE'S THROW vs Stone's Throw" example is handled by
+normalization, not by asking the model to "use judgment."
+
+**The government warning is checked separately and strictly.** It's the one element
+people deliberately tamper with (Jenny's interview). It's compared against the
+canonical federal text in [`src/lib/warning.ts`](src/lib/warning.ts), and a problem
+there is a hard **Fail**, not a soft review.
+
+**Three verdicts, not pass/fail.** Compliance is judgment work (Dave again). A
+mismatch or an unreadable image becomes **Needs review** so an agent makes the call;
+only a clean match is an auto-**Pass**, and only a mandatory-element violation is a
+hard **Fail**.
+
+**Batch is client-driven.** The browser calls the single-label endpoint once per
+image with bounded concurrency. Each serverless call stays short (well under
+platform timeouts even for a 300-label batch), results stream in as they finish,
+and one slow/oversized image can't block the rest.
+
+**Model choice.** Default is Claude Opus 4.8 for the best vision and edge-case
+judgment, configurable down to Sonnet/Haiku for latency. Effort is set to `low`
+and extended thinking is off to stay near the 5-second target; both are easy to
+raise for harder image sets.
+
+## Architecture
+
+```
+src/
+  app/
+    page.tsx               # UI shell: tabs, mock-mode banner
+    api/verify/route.ts    # POST: verify one label (image + expected fields)
+    api/config/route.ts    # GET: reports mock mode + model to the UI
+  lib/
+    extract.ts             # Claude vision call → structured fields (+ mock mode)
+    compare.ts             # deterministic field comparison & normalization
+    warning.ts             # canonical TTB warning + strict exact-match check
+    verify.ts              # orchestrates extract → compare → verdict
+    csv.ts                 # parse application CSV, match rows to images
+    pool.ts                # bounded-concurrency helper for batch
+    types.ts               # shared domain types
+  components/               # SingleForm, BatchPanel, ResultDetails, ImagePicker, ui
+```
+
+**Stack:** Next.js 16 (App Router) · TypeScript · Tailwind CSS · `@anthropic-ai/sdk`
+with structured outputs (JSON schema) · Zod for response validation.
+
+## Assumptions & limitations
+
+- **Standalone prototype.** No COLA integration (per Marcus's interview); the agent
+  supplies the application data via the form or a CSV. No data is persisted.
+- **Network egress.** Marcus noted TTB's firewall blocks many outbound endpoints.
+  This prototype calls the Anthropic API and assumes the deployment host can reach
+  it; a production deployment inside TTB would need that egress allow-listed (or a
+  FedRAMP-authorized model endpoint). Documented as a known constraint.
+- **Warning check is text-based.** It verifies wording and heading capitalization,
+  which it can read from the image. It does **not** measure font size or true bold
+  rendering (TTB also requires those) — those would need pixel-level layout
+  analysis and are out of scope for the prototype; flagged for follow-up.
+- **Beverage-type-specific rules** (e.g. ABV optional for some wines/beers) are not
+  yet enforced; the tool checks whatever fields the application provides plus the
+  universally-mandatory warning.
+- **Image limits:** up to 12 MB per image, JPEG/PNG/WEBP/GIF. Extremely large
+  images may need downsizing.
+- **Mock mode** returns a fixed sample result and does not analyze the uploaded
+  image — it exists only so the UI is testable without a key.

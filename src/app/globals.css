@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+:root {
+  /* Slightly larger base text — half the user base is over 50. */
+  font-size: 17px;
+}
+
+body {
+  background: #f6f7f9;
+  color: #1a1d21;
+  -webkit-font-smoothing: antialiased;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+}
+
+/* Visible focus ring for keyboard users. */
+:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+}

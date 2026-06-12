@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TTB Label Verifier — Sample Labels</title>
+    <style>
+      body {
+        font-family: Georgia, "Times New Roman", serif;
+        background: #e9e6df;
+        margin: 0;
+        padding: 32px 16px;
+        color: #1a1a1a;
+      }
+      .note {
+        max-width: 760px;
+        margin: 0 auto 28px;
+        font-family: system-ui, sans-serif;
+        background: #fff;
+        border: 1px solid #ccc;
+        border-radius: 10px;
+        padding: 16px 20px;
+        line-height: 1.5;
+      }
+      .note code { background: #f1f1f1; padding: 1px 5px; border-radius: 4px; }
+      .label {
+        width: 360px;
+        margin: 0 auto 36px;
+        background: #f7f3ea;
+        border: 2px solid #2a2a2a;
+        border-radius: 6px;
+        padding: 22px 24px;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+        text-align: center;
+      }
+      .brand { font-size: 30px; font-weight: bold; letter-spacing: 1px; margin: 4px 0; }
+      .type { font-style: italic; font-size: 16px; margin-bottom: 14px; }
+      .rule { border: none; border-top: 1px solid #999; margin: 12px 0; }
+      .stats { display: flex; justify-content: space-between; font-size: 15px; margin: 10px 2px; }
+      .bottler { font-size: 13px; color: #333; margin-top: 8px; }
+      .warn {
+        font-family: Arial, sans-serif;
+        font-size: 10.5px;
+        text-align: left;
+        line-height: 1.4;
+        margin-top: 16px;
+        border-top: 1px solid #bbb;
+        padding-top: 10px;
+      }
+      .warn b { font-weight: bold; }
+      .filename {
+        font-family: system-ui, sans-serif;
+        font-size: 12px;
+        color: #666;
+        text-align: center;
+        margin: -22px auto 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="note">
+      <strong>How to use these sample labels</strong>
+      <p>
+        Screenshot each label below (your OS region-capture works well) and save it
+        with the filename shown above it. Then drop the images into the app's
+        <em>Batch upload</em> tab along with <code>applications.csv</code> from this
+        folder. Expected outcomes:
+      </p>
+      <ul>
+        <li><code>old_tom_bourbon.png</code> → <strong>Pass</strong> (everything matches)</li>
+        <li>
+          <code>harbor_mist_gin.png</code> → <strong>Fail</strong> — the warning heading is
+          "Government Warning:" in title case, not all caps
+        </li>
+        <li>
+          <code>silver_birch_vodka.png</code> → <strong>Needs review</strong> — the label shows
+          40% but the application says 35%
+        </li>
+      </ul>
+    </div>
+
+    <!-- 1. Fully compliant -->
+    <div class="filename">old_tom_bourbon.png</div>
+    <div class="label">
+      <div class="brand">OLD TOM DISTILLERY</div>
+      <div class="type">Kentucky Straight Bourbon Whiskey</div>
+      <hr class="rule" />
+      <div class="stats"><span>45% Alc./Vol. (90 Proof)</span><span>750 mL</span></div>
+      <div class="bottler">Distilled &amp; Bottled by Old Tom Distillery Co., Bardstown, Kentucky</div>
+      <div class="warn">
+        <b>GOVERNMENT WARNING:</b> (1) According to the Surgeon General, women should
+        not drink alcoholic beverages during pregnancy because of the risk of birth
+        defects. (2) Consumption of alcoholic beverages impairs your ability to drive
+        a car or operate machinery, and may cause health problems.
+      </div>
+    </div>
+
+    <!-- 2. Tampered warning (title case heading) -> Fail -->
+    <div class="filename">harbor_mist_gin.png</div>
+    <div class="label">
+      <div class="brand">HARBOR MIST GIN</div>
+      <div class="type">London Dry Gin</div>
+      <hr class="rule" />
+      <div class="stats"><span>40% Alc./Vol. (80 Proof)</span><span>750 mL</span></div>
+      <div class="bottler">Bottled by Harbor Mist Distilling, Portland, Oregon</div>
+      <div class="warn">
+        <b>Government Warning:</b> (1) According to the Surgeon General, women should
+        not drink alcoholic beverages during pregnancy because of the risk of birth
+        defects. (2) Consumption of alcoholic beverages impairs your ability to drive
+        a car or operate machinery, and may cause health problems.
+      </div>
+    </div>
+
+    <!-- 3. ABV mismatch vs application -> Review -->
+    <div class="filename">silver_birch_vodka.png</div>
+    <div class="label">
+      <div class="brand">SILVER BIRCH VODKA</div>
+      <div class="type">Premium Vodka</div>
+      <hr class="rule" />
+      <div class="stats"><span>40% Alc./Vol. (80 Proof)</span><span>750 mL</span></div>
+      <div class="bottler">Produced by Silver Birch Spirits, Austin, Texas</div>
+      <div class="warn">
+        <b>GOVERNMENT WARNING:</b> (1) According to the Surgeon General, women should
+        not drink alcoholic beverages during pregnancy because of the risk of birth
+        defects. (2) Consumption of alcoholic beverages impairs your ability to drive
+        a car or operate machinery, and may cause health problems.
+      </div>
+    </div>
+  </body>
+</html>
